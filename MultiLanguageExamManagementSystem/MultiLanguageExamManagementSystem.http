@@ -1,0 +1,6 @@
+@MultiLanguageExamManagementSystem_HostAddress = http://localhost:5157
+
+GET {{MultiLanguageExamManagementSystem_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
