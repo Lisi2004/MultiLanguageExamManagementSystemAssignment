@@ -20,6 +20,9 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 builder.Services.AddScoped<ICultureService, CultureService>();
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 
+// Register the ITranslationService with its implementation
+builder.Services.AddScoped<ITranslationService, TranslationService>();
+
 builder.Services.AddControllers();
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
@@ -31,8 +34,14 @@ var app = builder.Build();
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
+    app.UseDeveloperExceptionPage(); // Add this line
     app.UseSwagger();
     app.UseSwaggerUI();
+}
+else
+{
+    app.UseExceptionHandler("/Home/Error"); // Customize this as needed
+    app.UseHsts();
 }
 
 app.UseHttpsRedirection();

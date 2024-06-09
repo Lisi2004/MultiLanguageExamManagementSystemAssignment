@@ -1,12 +1,17 @@
-﻿using System.Globalization;
+﻿using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
+using System.Linq.Expressions;
+using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Localization;
+using Microsoft.Extensions.Logging;
 using MultiLanguageExamManagementSystem.Data.UnitOfWork;
+using MultiLanguageExamManagementSystem.Models.Dtos;
 using MultiLanguageExamManagementSystem.Models.Entities;
 using MultiLanguageExamManagementSystem.Services.IServices;
-using System.Linq.Expressions;
 using AutoMapper;
-using MultiLanguageExamManagementSystem.Models.Dtos;
+using Microsoft.Extensions.Localization;
 
 namespace MultiLanguageExamManagementSystem.Services
 {
@@ -14,17 +19,17 @@ namespace MultiLanguageExamManagementSystem.Services
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly IMapper _mapper;
-        public CultureService(IUnitOfWork unitOfWork, IMapper mapper)
+        private readonly ILogger<CultureService> _logger;
+
+        public CultureService(IUnitOfWork unitOfWork, IMapper mapper, ILogger<CultureService> logger)
         {
             _unitOfWork = unitOfWork;
             _mapper = mapper;
+            _logger = logger;
         }
-
-        // Your code here
 
         #region String Localization
 
-        // String localization methods implementation here
         public LocalizedString this[string key]
         {
             get
@@ -44,35 +49,46 @@ namespace MultiLanguageExamManagementSystem.Services
 
         #region Languages
 
-        // language methods implementation here
         public async Task CreateLanguage(LanguageCreateDto language)
         {
             var languageToCreate = _mapper.Map<Language>(language);
 
             _unitOfWork.Repository<Language>().Create(languageToCreate);
-            _unitOfWork.Complete();
+            await _unitOfWork.CompleteAsync();
         }
 
         public async Task<List<LanguageDto>> GetAllLanguages()
         {
             var languages = await _unitOfWork.Repository<Language>().GetAll().ToListAsync();
 
-            var languagesToReturn = _mapper.Map<List<LanguageDto>>(languages);
-
-            return languagesToReturn;
+            return _mapper.Map<List<LanguageDto>>(languages);
         }
 
-        public async Task<Language> GetLanguage(int id)
+        public async Task<LanguageDto> GetLanguage(int id)
         {
-            var language = _unitOfWork.Repository<Language>().GetById(x => x.Id == id);
+            try
+            {
+                Expression<Func<Language, bool>> condition = language => language.Id == id;
+                var language = await _unitOfWork.Repository<Language>().GetByCondition(condition).FirstOrDefaultAsync();
 
-            return await language.FirstAsync();
+                if (language == null)
+                {
+                    throw new ArgumentException("Language not found with the provided id.", nameof(id));
+                }
+
+                return _mapper.Map<LanguageDto>(language);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error occurred while fetching language by id.");
+                throw;
+            }
         }
 
         public async Task UpdateLanguage(LanguageDto language)
         {
-            var languageToUpdate = _unitOfWork.Repository<Language>()
-                .GetById(x => x.LanguageCode == language.LanguageCode).FirstOrDefault();
+            var languageToUpdate = await _unitOfWork.Repository<Language>()
+                .GetById(x => x.LanguageCode == language.LanguageCode).FirstOrDefaultAsync();
 
             if (languageToUpdate != null)
             {
@@ -81,49 +97,45 @@ namespace MultiLanguageExamManagementSystem.Services
             }
 
             _unitOfWork.Repository<Language>().Update(languageToUpdate);
-
-            _unitOfWork.Complete();
+            await _unitOfWork.CompleteAsync();
         }
 
         public async Task DeleteLanguage(int id)
         {
-            var languageToDelete = _unitOfWork.Repository<Language>().GetById(x => x.Id == id).FirstOrDefault();
+            var languageToDelete = await _unitOfWork.Repository<Language>().GetById(x => x.Id == id).FirstOrDefaultAsync();
             _unitOfWork.Repository<Language>().Delete(languageToDelete);
-
-            _unitOfWork.Complete();
+            await _unitOfWork.CompleteAsync();
         }
+
         #endregion
 
         #region Localization Resources
 
-        // localization resource methods implementation here
-
         public async Task CreateLocalizationResource(LocalizationResourceCreateDto localizationResource)
         {
-            var resource = await _unitOfWork.Repository<LocalizationResource>()
+            var resourceExists = await _unitOfWork.Repository<LocalizationResource>()
                 .GetByCondition(x => x.Namespace == localizationResource.Namespace &&
                                      x.Key == localizationResource.Key &&
                                      x.LanguageId == localizationResource.LanguageId)
                 .AnyAsync();
 
-            if (resource)
+            if (resourceExists)
             {
                 throw new InvalidOperationException("Localization resource already exists");
             }
 
-            var language = await _unitOfWork.Repository<Language>()
+            var languageExists = await _unitOfWork.Repository<Language>()
                     .GetByCondition(x => x.Id == localizationResource.LanguageId)
                     .AnyAsync();
 
-            if (!language)
+            if (!languageExists)
             {
                 throw new ArgumentException("Language does not exist", nameof(localizationResource.LanguageId));
             }
 
             var localizationResourceToCreate = _mapper.Map<LocalizationResource>(localizationResource);
             _unitOfWork.Repository<LocalizationResource>().Create(localizationResourceToCreate);
-
-            _unitOfWork.Complete();
+            await _unitOfWork.CompleteAsync();
         }
 
         public async Task<List<LocalizationResourceDto>> GetAllLocalizationResources()
@@ -135,43 +147,36 @@ namespace MultiLanguageExamManagementSystem.Services
             return _mapper.Map<List<LocalizationResourceDto>>(localizationResources);
         }
 
-
         public async Task<LocalizationResource> GetLocalizationResource(string namespacePart, string keyPart, string acceptLanguage = "")
         {
+            Expression<Func<LocalizationResource, bool>> condition;
+
             if (!string.IsNullOrEmpty(acceptLanguage))
             {
-                var language = _unitOfWork.Repository<Language>().GetByCondition(x => x.LanguageCode == acceptLanguage).FirstOrDefault();
+                var language = await _unitOfWork.Repository<Language>().GetByCondition(x => x.LanguageCode == acceptLanguage).FirstOrDefaultAsync();
                 if (language == null)
                 {
                     throw new Exception("Language does not exist");
                 }
 
-                Expression<Func<LocalizationResource, bool>> condition =
-                    resource => resource.Namespace == namespacePart &&
+                condition = resource => resource.Namespace == namespacePart &&
                                 resource.Key == keyPart &&
                                 resource.LanguageId == language.Id;
-
-                var resource = _unitOfWork.Repository<LocalizationResource>().GetByCondition(condition);
-
-                return resource.FirstOrDefault();
             }
             else
             {
-                Expression<Func<LocalizationResource, bool>> condition =
-                    resource => resource.Namespace == namespacePart &&
+                condition = resource => resource.Namespace == namespacePart &&
                                 resource.Key == keyPart;
-
-                var resource = _unitOfWork.Repository<LocalizationResource>().GetByCondition(condition);
-
-                return resource.FirstOrDefault();
             }
 
+            var resource = await _unitOfWork.Repository<LocalizationResource>().GetByCondition(condition).FirstOrDefaultAsync();
+
+            return resource;
         }
 
         public async Task UpdateLocalizationResource(LocalizationResourceCreateDto localizationResource)
         {
-            var localizationResourceToUpdate =
-                await GetLocalizationResource(localizationResource.Namespace, localizationResource.Key);
+            var localizationResourceToUpdate = await GetLocalizationResource(localizationResource.Namespace, localizationResource.Key);
 
             if (localizationResourceToUpdate != null)
             {
@@ -183,30 +188,21 @@ namespace MultiLanguageExamManagementSystem.Services
             }
 
             _unitOfWork.Repository<LocalizationResource>().Update(localizationResourceToUpdate);
-
-            _unitOfWork.Complete();
+            await _unitOfWork.CompleteAsync();
         }
 
         public async Task DeleteLocalizationResource(int id)
         {
-            var localizationResource = _unitOfWork.Repository<LocalizationResource>().GetById(x => x.Id == id).FirstOrDefault();
-
+            var localizationResource = await _unitOfWork.Repository<LocalizationResource>().GetById(x => x.Id == id).FirstOrDefaultAsync();
             _unitOfWork.Repository<LocalizationResource>().Delete(localizationResource);
-
-            _unitOfWork.Complete();
-        }
-
-        Task<LanguageDto> ICultureService.GetLanguage(int id)
-        {
-            throw new NotImplementedException();
+            await _unitOfWork.CompleteAsync();
         }
 
         Task<LocalizationResourceDto> ICultureService.GetLocalizationResource(string namespacePart, string keyPart, string acceptLanguage)
         {
             throw new NotImplementedException();
         }
+
         #endregion
-
-
     }
 }

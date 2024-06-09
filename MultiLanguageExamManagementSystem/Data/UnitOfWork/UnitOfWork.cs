@@ -1,13 +1,13 @@
 ﻿using MultiLanguageExamManagementSystem.Data.Repository;
 using MultiLanguageExamManagementSystem.Data.Repository.IRepository;
 using System.Collections;
+using System.Threading.Tasks; // Add this namespace for async Task
 
 namespace MultiLanguageExamManagementSystem.Data.UnitOfWork
 {
     public class UnitOfWork : IUnitOfWork
     {
         private readonly ApplicationDbContext _dbContext;
-
         private Hashtable _repositories;
 
         public UnitOfWork(ApplicationDbContext dbContext)
@@ -15,9 +15,9 @@ namespace MultiLanguageExamManagementSystem.Data.UnitOfWork
             _dbContext = dbContext;
         }
 
-        public bool Complete()
+        public async Task<bool> CompleteAsync() // Modify the return type to Task<bool>
         {
-            var numberOfAffectedRows = _dbContext.SaveChanges();
+            var numberOfAffectedRows = await _dbContext.SaveChangesAsync(); // Use SaveChangesAsync for asynchronous saving
             return numberOfAffectedRows > 0;
         }
 

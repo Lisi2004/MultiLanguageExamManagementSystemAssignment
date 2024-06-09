@@ -82,7 +82,7 @@ namespace MultiLanguageExamManagementSystem.Services
 
             var translatedResourcesToCreate = _mapper.Map<List<LocalizationResource>>(translatedResources);
             _unitOfWork.Repository<LocalizationResource>().CreateRange(translatedResourcesToCreate);
-            _unitOfWork.Complete();
+            _unitOfWork.CompleteAsync();
 
             return translatedResources;
         }

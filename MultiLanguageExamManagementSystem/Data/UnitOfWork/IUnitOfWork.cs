@@ -1,11 +1,12 @@
 ﻿using MultiLanguageExamManagementSystem.Data.Repository.IRepository;
+using System.Threading.Tasks; // Add this namespace for async Task
 
 namespace MultiLanguageExamManagementSystem.Data.UnitOfWork
 {
     public interface IUnitOfWork
     {
-        public IApplicationRepository<TEntity> Repository<TEntity>() where TEntity : class;
+        IApplicationRepository<TEntity> Repository<TEntity>() where TEntity : class;
 
-        bool Complete();
+        Task<bool> CompleteAsync(); // Updated to return a Task<bool> for asynchronous completion
     }
 }
