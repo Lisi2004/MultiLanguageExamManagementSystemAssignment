@@ -12,7 +12,7 @@ public class TakenExam
 
     public int UserId { get; set; }
     [ForeignKey("UserId")]
-    public User User { get; set; }
+    public LocalUser User { get; set; }
 
     public bool IsCompleted { get; set; }
 }

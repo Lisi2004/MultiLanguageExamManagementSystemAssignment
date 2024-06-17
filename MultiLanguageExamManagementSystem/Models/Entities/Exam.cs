@@ -9,7 +9,7 @@ public class Exam
     public string Title { get; set; }
     public int CreatorId { get; set; }
     [ForeignKey("CreatorId")]
-    public User Creator { get; set; }
+    public LocalUser Creator { get; set; }
 
     public ICollection<ExamQuestion> ExamQuestions { get; set; }
     public ICollection<TakenExam> TakenExams { get; set; }
